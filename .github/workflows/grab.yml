@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      test_notification:
+        description: "Only send a test issue/email (doesn't touch Oracle)"
+        type: boolean
+        default: false
 
 concurrency:
   group: grab
@@ -28,8 +33,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Send a test notification
+        if: github.event.inputs.test_notification == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --assignee "${{ github.repository_owner }}" \
+            --title "Test: notifications work" \
+            --body "@${{ github.repository_owner }} this is a test from the retry workflow. If you got this by email, you'll also get one when the real server launches. You can close this issue."
+
       - name: Check secrets are set
         id: ready
+        if: github.event.inputs.test_notification != 'true'
         env:
           OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
         run: |
@@ -78,7 +94,8 @@ jobs:
         run: |
           if [ "${{ steps.launch.outputs.created }}" = "true" ]; then
             gh issue create --repo "$GITHUB_REPOSITORY" \
+              --assignee "${{ github.repository_owner }}" \
               --title "Oracle server launched (${SHAPE})" \
-              --body "The free server **${INSTANCE_NAME}** was created in ${OCI_REGION}. Open Oracle Cloud → Compute → Instances to see its public IP. This workflow has switched itself off."
+              --body "@${{ github.repository_owner }} the free server **${INSTANCE_NAME}** was created in ${OCI_REGION}. Open Oracle Cloud → Compute → Instances to see its public IP. This workflow has switched itself off."
           fi
           gh workflow disable grab.yml --repo "$GITHUB_REPOSITORY"
