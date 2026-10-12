@@ -4,7 +4,8 @@ Oracle's Always Free servers in Sydney are often "out of host capacity". This re
 tries to launch one every 10 minutes using GitHub Actions until it succeeds, then
 opens an issue (so you get an email) and switches itself off.
 
-- Tries **Ampere A1, 1 OCPU / 6 GB** first, then the **AMD E2.1.Micro**. Both are Always Free.
+- Only tries the **Ampere A1** (Always Free): the full **2 OCPU / 12 GB** first, then
+  **1 OCPU / 6 GB**. Never falls back to the AMD Micro.
 - Never launches anything that isn't Always Free, and never creates a second server
   named `marley`.
 - Free to run: this repo is public, so Actions minutes don't count against any quota.
