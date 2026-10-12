@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tries once to launch an Always Free Oracle server. Run on a schedule until it works.
-# Tries Ampere A1 (1 OCPU / 6 GB) first, then the AMD E2.1.Micro.
-# Only ever launches Always Free shapes, and never a second server with the same name.
+# Only tries the Ampere A1 (Always Free): the full 2 OCPU / 12 GB first, then 1 OCPU / 6 GB.
+# Never launches a second server with the same name.
 set -uo pipefail
 
 C="$OCI_TENANCY"
@@ -47,16 +47,16 @@ try() {
     --ssh-authorized-keys-file "$KEYFILE" --query 'data."lifecycle-state"' --raw-output)
   [ -n "$config" ] && args+=(--shape-config "$config")
   if result=$(oci "${args[@]}" 2>&1); then
-    echo "Launched $shape ($result)."
+    echo "Launched $shape $config ($result)."
     out "created=true"
-    out "shape=$shape"
+    out "shape=$shape $config"
     return 0
   fi
-  echo "$shape: $(grep -o '"message": "[^"]*"' <<<"$result" | head -1)"
+  echo "$shape $config: $(grep -o '"message": "[^"]*"' <<<"$result" | head -1)"
   return 1
 }
 
-try VM.Standard.A1.Flex '{"ocpus":1,"memoryInGBs":6}' ||
-  try VM.Standard.E2.1.Micro '' ||
+try VM.Standard.A1.Flex '{"ocpus":2,"memoryInGBs":12}' ||
+  try VM.Standard.A1.Flex '{"ocpus":1,"memoryInGBs":6}' ||
   echo "No capacity this time; will try again on the next run."
 exit 0
