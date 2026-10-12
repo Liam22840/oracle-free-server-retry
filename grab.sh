@@ -9,13 +9,25 @@ NAME="${INSTANCE_NAME:-marley}"
 out() { [ -n "${GITHUB_OUTPUT:-}" ] && echo "$1" >> "$GITHUB_OUTPUT"; }
 
 # Stop if the server already exists (any state except terminated).
-existing=$(oci compute instance list -c "$C" --display-name "$NAME" \
-  --query "length(data[?\"lifecycle-state\"!='TERMINATED'])" --raw-output 2>/dev/null || echo "?")
-if [ "$existing" != "0" ]; then
-  echo "A server named '$NAME' already exists (or the check failed: '$existing'). Nothing to do."
-  [ "$existing" != "?" ] && out "created=exists"
+# With no servers at all the CLI prints nothing, so empty means 0.
+ERR=$(mktemp)
+if ! existing=$(oci compute instance list -c "$C" --display-name "$NAME" --all \
+  --query "length((data || \`[]\`)[?\"lifecycle-state\"!='TERMINATED'])" --raw-output 2>"$ERR"); then
+  echo "Couldn't reach Oracle (check the secrets):" >&2
+  grep -m3 -E '"(code|message)"|Error' "$ERR" >&2 || head -c 300 "$ERR" >&2
+  exit 1
+fi
+existing=${existing:-0}
+if ! [[ "$existing" =~ ^[0-9]+$ ]]; then
+  echo "Unexpected answer from Oracle: '$existing'" >&2
+  exit 1
+fi
+if [ "$existing" -gt 0 ]; then
+  echo "A server named '$NAME' already exists. Nothing to do."
+  out "created=exists"
   exit 0
 fi
+echo "Connected to Oracle; no '$NAME' server yet. Trying to launch."
 
 AD=$(oci iam availability-domain list -c "$C" --query 'data[0].name' --raw-output)
 SUBNET=$(oci network subnet list -c "$C" --display-name "$SUBNET_NAME" --query 'data[0].id' --raw-output)
