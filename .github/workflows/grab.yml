@@ -1,0 +1,84 @@
+name: Grab Oracle free server
+
+# Every 10 minutes, try to launch the Always Free server. When it works, open an
+# issue (you get an email) and switch this workflow off.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: grab
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  actions: write
+
+jobs:
+  grab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OCI_REGION: ap-sydney-1
+      SUBNET_NAME: public subnet-marley-vcn
+      INSTANCE_NAME: marley
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets are set
+        id: ready
+        env:
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+        run: |
+          if [ -z "$OCI_PRIVATE_KEY" ]; then
+            echo "Secrets not set yet; skipping."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install and configure the OCI CLI
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          OCI_USER: ${{ secrets.OCI_USER_OCID }}
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+        run: |
+          pip install --quiet oci-cli
+          install -m 700 -d ~/.oci
+          printf '%s\n' "$OCI_PRIVATE_KEY" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=$OCI_USER
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY
+          region=$OCI_REGION
+          key_file=$HOME/.oci/key.pem
+          EOF
+          chmod 600 ~/.oci/config
+
+      - name: Try to launch
+        id: launch
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+        run: bash grab.sh
+
+      - name: Tell us and stop
+        if: steps.launch.outputs.created == 'true' || steps.launch.outputs.created == 'exists'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHAPE: ${{ steps.launch.outputs.shape }}
+        run: |
+          if [ "${{ steps.launch.outputs.created }}" = "true" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Oracle server launched (${SHAPE})" \
+              --body "The free server **${INSTANCE_NAME}** was created in ${OCI_REGION}. Open Oracle Cloud → Compute → Instances to see its public IP. This workflow has switched itself off."
+          fi
+          gh workflow disable grab.yml --repo "$GITHUB_REPOSITORY"
