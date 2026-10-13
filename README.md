@@ -1,8 +1,11 @@
 # Oracle free server retry
 
 Oracle's Always Free servers in Sydney are often "out of host capacity". This repo
-tries to launch one every 10 minutes using GitHub Actions until it succeeds, then
+tries to launch one every 5 minutes using GitHub Actions until it succeeds, then
 opens an issue (so you get an email) and switches itself off.
+
+GitHub's scheduler often skips runs on quiet repos, so each run loops by itself for
+about 5.5 hours; the 10-minute schedule only restarts it.
 
 - Only tries the **Ampere A1** (Always Free): the full **2 OCPU / 12 GB** first, then
   **1 OCPU / 6 GB**. Never falls back to the AMD Micro.
