@@ -1,7 +1,8 @@
 name: Grab Oracle free server
 
-# Every 10 minutes, try to launch the Always Free server. When it works, open an
-# issue (you get an email) and switch this workflow off.
+# GitHub's schedule is best-effort, so each run keeps trying every 5 minutes for
+# about 5.5 hours. The cron just restarts it. When it works, open an issue (you get
+# an email) and switch this workflow off.
 
 on:
   schedule:
@@ -25,7 +26,7 @@ permissions:
 jobs:
   grab:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 350
     env:
       OCI_REGION: ap-sydney-1
       SUBNET_NAME: public subnet-marley-vcn
